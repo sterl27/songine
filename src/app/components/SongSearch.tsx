@@ -29,8 +29,8 @@ export function SongSearch({ onSearch, onQuickSelect, isLoading }: SongSearchPro
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const containerRef = useRef<HTMLFormElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load all songs for suggestions on mount
   useEffect(() => {

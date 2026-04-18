@@ -1,4 +1,4 @@
-import { projectId, publicAnonKey } from "/utils/supabase/info";
+import { projectId, publicAnonKey } from "../../../utils/supabase/info";
 import type { Song } from "../components/SongCard";
 
 const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-aa7dba7b`;

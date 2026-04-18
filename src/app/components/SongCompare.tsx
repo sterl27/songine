@@ -84,8 +84,6 @@ export function SongCompare({ initialSong }: SongCompareProps) {
     }));
   }, [songA?.id, songB?.id]);
 
-  const radiusTicks = useMemo(() => [0, 25, 50, 75, 100], []);
-
   if (allSongs.length < 2) {
     return (
       <Card className="border-primary/10 bg-gradient-to-br from-card to-card/50">
@@ -193,7 +191,7 @@ export function SongCompare({ initialSong }: SongCompareProps) {
                     angle={90}
                     domain={[0, 100]}
                     tick={{ fill: "#666", fontSize: 10 }}
-                    ticks={radiusTicks}
+                    tickCount={5}
                     allowDuplicatedCategory={false}
                   />
                   <Tooltip

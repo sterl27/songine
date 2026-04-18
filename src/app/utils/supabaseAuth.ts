@@ -3,11 +3,13 @@ import {
   type AuthChangeEvent,
   type Session,
 } from "@supabase/supabase-js";
-import { projectId, publicAnonKey } from "/utils/supabase/info";
+import { projectId, publicAnonKey } from "../../../utils/supabase/info";
+
+const runtimeEnv = typeof process !== "undefined" ? process.env : undefined;
 
 const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL ?? `https://${projectId}.supabase.co`;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? publicAnonKey;
+  runtimeEnv?.NEXT_PUBLIC_SUPABASE_URL ?? `https://${projectId}.supabase.co`;
+const supabaseAnonKey = runtimeEnv?.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? publicAnonKey;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

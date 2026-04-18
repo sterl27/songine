@@ -1,0 +1,7 @@
+@import "../../src/styles/index.css";
+
+@source "../../src/**/*.{ts,tsx}";
+
+html {
+  color-scheme: dark;
+}

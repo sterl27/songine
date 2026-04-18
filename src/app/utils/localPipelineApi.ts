@@ -34,8 +34,13 @@ export interface GenerateRequest {
   instrumental?: boolean;
 }
 
+const runtimeEnv = typeof process !== "undefined" ? process.env : undefined;
+
+const nextProxyBase =
+  runtimeEnv?.NEXT_PUBLIC_LOCAL_PIPELINE_PROXY_PATH ?? "/api/local-pipeline";
+
 export const LOCAL_PIPELINE_BASE_URL =
-  import.meta.env.VITE_LOCAL_PIPELINE_URL ?? "http://localhost:8000";
+  runtimeEnv ? nextProxyBase : "http://localhost:8000";
 
 export async function generateLocalBeat(
   payload: GenerateRequest

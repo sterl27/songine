@@ -176,7 +176,7 @@ export const AudioFeatures = memo(function AudioFeatures({ song }: AudioFeatures
                   angle={90}
                   domain={[0, 100]}
                   tick={{ fill: "#666", fontSize: 10 }}
-                  ticks={radiusTicks}
+                  tickCount={5}
                   allowDuplicatedCategory={false}
                 />
                 <Tooltip content={<CustomRadarTooltip />} />
