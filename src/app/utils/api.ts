@@ -24,6 +24,29 @@ async function parseErrorResponse(response: Response): Promise<string> {
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 800;
+const REQUEST_TIMEOUT_MS = 12_000;
+
+function timeoutError(url: string, timeoutMs: number): Error {
+  return new Error(`Request timed out after ${timeoutMs}ms: ${url}`);
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(timeoutError(url, timeoutMs)), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 async function fetchWithRetry(
   url: string,
@@ -32,7 +55,7 @@ async function fetchWithRetry(
 ): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url, options);
+      const response = await fetchWithTimeout(url, options, REQUEST_TIMEOUT_MS);
       // Don't retry client errors (4xx), only server errors (5xx) or network issues
       if (response.ok || (response.status >= 400 && response.status < 500)) {
         return response;
@@ -44,10 +67,16 @@ async function fetchWithRetry(
       }
       return response;
     } catch (err) {
+      const isAbort = err instanceof Error && err.name === "AbortError";
       if (attempt < retries) {
-        console.log(`Retry ${attempt + 1}/${retries} for ${url} (network error)`);
+        console.log(
+          `Retry ${attempt + 1}/${retries} for ${url} (${isAbort ? "timeout" : "network error"})`
+        );
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
         continue;
+      }
+      if (isAbort) {
+        throw timeoutError(url, REQUEST_TIMEOUT_MS);
       }
       throw err;
     }

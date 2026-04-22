@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+import asyncio
 import json
 import os
 import uuid
@@ -323,7 +324,8 @@ async def generate_stream(req: GenerateRequest):
             _ = (musicgen, demucs)
 
             yield "data: Generating audio with MusicGen\n\n"
-            result = run_pipeline(req)
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, run_pipeline, req)
 
             yield "data: Running MIR analysis\n\n"
             yield "data: Upload step completed\n\n"

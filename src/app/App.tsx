@@ -70,21 +70,35 @@ export default function App() {
 
   // Initialize the database on first load
   useEffect(() => {
+    let isMounted = true;
+
     const init = async () => {
       try {
         console.log("Initializing database...");
         const result = await initializeDatabase();
         console.log(`Database initialized with ${result.count} songs`);
-        setIsInitialized(true);
+        if (isMounted) {
+          setIsInitialized(true);
+        }
       } catch (err) {
         console.error("Error initializing database:", err);
-        setError(
-          `Failed to initialize database: ${err instanceof Error ? err.message : String(err)}`
-        );
+        if (isMounted) {
+          setError(
+            `Failed to initialize database: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsInitialized(true);
+        }
       }
     };
 
     init();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {

@@ -11,8 +11,8 @@ def _get_jwt_secret() -> str:
     secret = os.getenv("SUPABASE_JWT_SECRET")
     if not secret:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="SUPABASE_JWT_SECRET is not configured",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is not configured",
         )
     return secret
 
