@@ -3,8 +3,10 @@ import {
   ConversationProvider,
   useConversationControls,
   useConversationStatus,
+  useConversationMode,
 } from '@elevenlabs/react';
-import { Send, Key, Settings, Mic, MicOff, Radio } from 'lucide-react';
+import { Send, Key, Settings, Mic, MicOff, Radio, Volume2, Loader2 } from 'lucide-react';
+import { speakHermes } from '../utils/speak-hermes';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -209,9 +211,11 @@ function AITerminalInner({
   showConfig, setShowConfig,
 }: InnerProps) {
   const { startSession, endSession } = useConversationControls();
-  const { status, isSpeaking, isListening } = useConversationStatus();
+  const { status } = useConversationStatus();
+  const { isSpeaking, isListening } = useConversationMode();
 
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [activePreset, setActivePreset] = useState<PresetId>('rock');
@@ -257,47 +261,40 @@ function AITerminalInner({
       text: 'Establishing neural audio link... Microphone access required.',
     }]);
 
-    try {
-      await startSession({
-        agentId,
-        onConnect: () => {
+    startSession({
+      agentId,
+      onConnect: () => {
+        setMessages(prev => [...prev, {
+          role: 'ai', label: 'voice_connected',
+          text: 'Neural audio link established. Voice channel open — speak now.',
+        }]);
+      },
+      onDisconnect: () => {
+        setMessages(prev => [...prev, {
+          role: 'ai', label: 'voice_disconnected',
+          text: 'Voice channel closed.',
+        }]);
+      },
+      onMessage: (msg: { message: string; role: 'user' | 'agent' }) => {
+        if (msg.role === 'agent') {
           setMessages(prev => [...prev, {
-            role: 'ai', label: 'voice_connected',
-            text: 'Neural audio link established. Voice channel open — speak now.',
+            role: 'ai', label: 'voice_transcript',
+            text: msg.message,
           }]);
-        },
-        onDisconnect: () => {
+        } else {
           setMessages(prev => [...prev, {
-            role: 'ai', label: 'voice_disconnected',
-            text: 'Voice channel closed.',
+            role: 'user', label: 'voice_input',
+            text: msg.message,
           }]);
-        },
-        onMessage: (msg: { message: string; source: string }) => {
-          if (msg.source === 'ai' || msg.source === 'agent') {
-            setMessages(prev => [...prev, {
-              role: 'ai', label: 'voice_transcript',
-              text: msg.message,
-            }]);
-          } else if (msg.source === 'user') {
-            setMessages(prev => [...prev, {
-              role: 'user', label: 'voice_input',
-              text: msg.message,
-            }]);
-          }
-        },
-        onError: (err: string) => {
-          setMessages(prev => [...prev, {
-            role: 'ai', label: 'voice_error',
-            text: `Voice error: ${err}`,
-          }]);
-        },
-      } as Parameters<typeof startSession>[0]);
-    } catch (err) {
-      setMessages(prev => [...prev, {
-        role: 'ai', label: 'voice_error',
-        text: `Failed to start voice session: ${err instanceof Error ? err.message : String(err)}`,
-      }]);
-    }
+        }
+      },
+      onError: (err: string) => {
+        setMessages(prev => [...prev, {
+          role: 'ai', label: 'voice_error',
+          text: `Voice error: ${err}`,
+        }]);
+      },
+    });
   }, [agentId, isVoiceConnected, isVoiceConnecting, startSession, endSession, setShowConfig]);
 
   // ── Text chat ──────────────────────────────────────────────────────────────
@@ -518,13 +515,35 @@ Respond in 1-3 concise sentences. Use technical audio terminology. No markdown.`
             <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto font-[Space_Grotesk,monospace] text-sm">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex flex-col gap-1 max-w-[82%] ${msg.role === 'ai' ? 'self-end items-end' : ''}`}>
-                  <span className={`uppercase text-[9px] tracking-widest ${
-                    msg.label.startsWith('voice') ? 'text-green-500' :
-                    msg.role === 'ai' ? 'text-blue-500' : 'text-zinc-500'
-                  }`}>
-                    {msg.role === 'ai' ? 'AI: ' : 'User: '}{msg.label}
-                  </span>
-                  <div className={`p-3 rounded-lg text-sm leading-relaxed border`}
+                  <div className={`flex items-center gap-2 ${msg.role === 'ai' ? 'flex-row-reverse' : ''}`}>
+                    <span className={`uppercase text-[9px] tracking-widest ${
+                      msg.label.startsWith('voice') ? 'text-green-500' :
+                      msg.role === 'ai' ? 'text-blue-500' : 'text-zinc-500'
+                    }`}>
+                      {msg.role === 'ai' ? 'AI: ' : 'User: '}{msg.label}
+                    </span>
+                    {/* Hermes speak button — AI messages only */}
+                    {msg.role === 'ai' && (
+                      <button
+                        onClick={async () => {
+                          if (speakingIdx === i) return;
+                          setSpeakingIdx(i);
+                          try { await speakHermes(msg.text); }
+                          catch { /* silent — network errors shouldn't break the UI */ }
+                          finally { setSpeakingIdx(null); }
+                        }}
+                        disabled={speakingIdx !== null}
+                        title="Speak with Hermes voice"
+                        className="transition-opacity opacity-40 hover:opacity-100 disabled:opacity-20"
+                      >
+                        {speakingIdx === i
+                          ? <Loader2 size={11} className="text-blue-400 animate-spin" />
+                          : <Volume2 size={11} className="text-blue-400" />
+                        }
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-3 rounded-lg text-sm leading-relaxed border"
                     style={
                       msg.label.startsWith('voice')
                         ? { background: 'rgba(0,80,30,0.3)', borderColor: 'rgba(74,222,128,0.25)', color: '#bbf7d0' }
