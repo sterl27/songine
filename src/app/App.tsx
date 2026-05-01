@@ -9,6 +9,8 @@ import { AuthControls } from "./components/AuthControls";
 import { SongCompare } from "./components/SongCompare";
 import { SongHistory } from "./components/SongHistory";
 import { SongDetailModal } from "./components/SongDetailModal";
+import { ThemeSignalMap } from "./components/ThemeSignalMap";
+import { AITerminalStudio } from "./components/AITerminalStudio";
 import { SongCardSkeleton } from "./components/LoadingSkeletons";
 import {
   searchSongs,
@@ -34,6 +36,8 @@ import {
   Heart,
   History,
   Loader2,
+  Target,
+  Terminal,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
@@ -294,7 +298,7 @@ export default function App() {
       <main className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="overflow-x-auto -mx-4 px-4 pb-2">
-            <TabsList className="inline-flex w-auto min-w-full sm:min-w-0 sm:grid sm:w-full sm:max-w-4xl sm:grid-cols-8 mb-6">
+            <TabsList className="inline-flex w-auto min-w-full sm:min-w-0 sm:grid sm:w-full sm:max-w-4xl sm:grid-cols-10 mb-6">
               <TabsTrigger value="mir" className="text-xs sm:text-sm">
                 <Search className="size-3.5 sm:size-4 mr-1.5" />
                 <span className="hidden sm:inline">AI MIR</span>
@@ -339,6 +343,16 @@ export default function App() {
                 <History className="size-3.5 sm:size-4 mr-1.5" />
                 <span className="hidden sm:inline">History</span>
                 <span className="sm:hidden">Hist</span>
+              </TabsTrigger>
+              <TabsTrigger value="themes" className="text-xs sm:text-sm">
+                <Target className="size-3.5 sm:size-4 mr-1.5" />
+                <span className="hidden sm:inline">Theme Map</span>
+                <span className="sm:hidden">Themes</span>
+              </TabsTrigger>
+              <TabsTrigger value="aiterminal" className="text-xs sm:text-sm">
+                <Terminal className="size-3.5 sm:size-4 mr-1.5" />
+                <span className="hidden sm:inline">AI Terminal</span>
+                <span className="sm:hidden">Terminal</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -477,6 +491,27 @@ export default function App() {
               onSelectSong={handleHistorySelect}
               onClearHistory={handleClearHistory}
             />
+          </TabsContent>
+
+          {/* AI Terminal Studio */}
+          <TabsContent value="aiterminal" className="mt-0">
+            <div className="bg-zinc-950 rounded-2xl p-6">
+              <AITerminalStudio />
+            </div>
+          </TabsContent>
+
+          {/* Theme Signal Map */}
+          <TabsContent value="themes" className="mt-0">
+            <div className="bg-slate-950 rounded-2xl p-6">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+                  <Target className="text-amber-500" />
+                  Theme Signal Map
+                </h2>
+                <p className="text-slate-400 mt-1 text-sm">Cross-document thematic synthesis via SterlAI corpus.</p>
+              </div>
+              <ThemeSignalMap />
+            </div>
           </TabsContent>
         </Tabs>
       </main>
