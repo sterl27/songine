@@ -116,19 +116,28 @@ export function ThemeSignalMap() {
   const [error, setError] = useState<string | null>(null);
 
   const chartData = useMemo(() => {
-    const docs = ['Musaix Pro', 'Shadow Op', 'Style Coach', 'Bio', 'Project X', 'Legacy'];
+    if (THEMES.length === 0) return [];
+    type ScoreKeys = keyof (typeof THEMES)[number]['scores'];
+    const docs = Object.keys(THEMES[0].scores) as ScoreKeys[];
     return docs.map(doc => {
-      const entry: Record<string, string | number> = { subject: doc };
+      const entry: Record<string, string | number> = { subject: doc as string };
       THEMES.forEach(theme => {
-        entry[theme.id] = theme.scores[doc as keyof typeof theme.scores];
+        entry[theme.id] = theme.scores[doc];
       });
       return entry;
     });
   }, []);
 
   const handleExplore = async (theme: typeof THEMES[number]) => {
-    if (!apiKey) {
-      setError('Please enter an OpenRouter API key first.');
+    const normalizedApiKey = apiKey?.trim() ?? '';
+
+    if (!normalizedApiKey) {
+      setError('Please enter an OpenRouter API key first (whitespace-only keys are not valid).');
+      return;
+    }
+
+    if (normalizedApiKey.length < 20) {
+      setError('The OpenRouter API key looks too short. Please double-check and paste the full key.');
       return;
     }
 
@@ -145,12 +154,14 @@ Evidence: ${theme.evidence.join(' | ')}`;
 How does this theme specifically act as a 'personal operating system' across these disparate projects?
 Reference the provided evidence directly. Keep the tone analytical, precise, and systems-oriented.`;
 
+    const referer = typeof window !== 'undefined' ? window.location.origin : 'https://musaix.com';
+
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'HTTP-Referer': 'musaix.com',
+          Authorization: `Bearer ${normalizedApiKey}`,
+          'HTTP-Referer': referer,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
