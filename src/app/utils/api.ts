@@ -159,8 +159,41 @@ export interface AIAnalysis {
   fun_fact: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const LOCAL_AGENT_URL: string = (() => {
+  try {
+    // Vite-only: import.meta.env is available at runtime in the browser bundle
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const env = (import.meta as any).env as Record<string, string> | undefined;
+    return env?.["VITE_LOCAL_AGENT_URL"] || "http://localhost:8000";
+  } catch {
+    return "http://localhost:8000";
+  }
+})();
+
+async function getLocalAIAnalysis(song: Song): Promise<AIAnalysis> {
+  const response = await fetchWithTimeout(
+    `${LOCAL_AGENT_URL}/api/agent/analyze`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ song }),
+    },
+    8_000,
+  );
+  if (!response.ok) throw new Error(`Local agent: ${response.status}`);
+  return response.json();
+}
+
 export async function getAIAnalysis(song: Song): Promise<AIAnalysis> {
-  // Try cached first
+  // Prefer local Hermes agent when available
+  try {
+    return await getLocalAIAnalysis(song);
+  } catch {
+    // Fall through to cloud
+  }
+
+  // Try cached cloud result first
   try {
     const cachedResponse = await fetchWithRetry(`${API_BASE_URL}/ai/analyze/${song.id}`, { headers }, 0);
     if (cachedResponse.ok) {

@@ -21,6 +21,14 @@ Musaix Pro now supports a migrated Next.js frontend (`frontend/`) that reuses th
 
 ## Quick start
 
+### Automated full setup (recommended)
+
+```bash
+./setup.sh
+```
+
+This bootstraps root + frontend dependencies, creates `backend/venv`, installs backend Python packages, and builds the Next.js frontend.
+
 ### Next.js frontend (recommended)
 
 ```bash
@@ -41,9 +49,18 @@ Open: `http://localhost:5173`
 
 ### Local backend (for Studio tab)
 
+Install system prerequisites first (Debian/Ubuntu):
+
 ```bash
-pip install -r backend/requirements.txt
-python -m uvicorn backend.main:app --reload --port 8000
+sudo apt install -y python3-venv python3-pip build-essential pkg-config libavformat-dev libavcodec-dev libswresample-dev
+```
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python -m uvicorn main:app --reload --port 8000
 ```
 
 Open API docs: `http://localhost:8000/docs`
@@ -55,13 +72,13 @@ Use two terminals from the repo root:
 Terminal A (backend):
 
 ```bash
-python -m uvicorn backend.main:app --reload --port 8000
+pnpm backend:dev
 ```
 
 Terminal B (Next.js frontend):
 
 ```bash
-pnpm --dir frontend dev
+pnpm dev:frontend
 ```
 
 Then open the frontend URL printed by Next.js (`http://localhost:3000` by default).
@@ -112,7 +129,10 @@ docs/      # Developer docs
 ## Documentation
 
 - Central docs index: [`docs/INDEX.md`](docs/INDEX.md)
+- Command quick reference: [`QUICKSTART.md`](QUICKSTART.md)
+- Workflow guide: [`WORKFLOW.md`](WORKFLOW.md)
 - Full implementation and contributor guide: [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md)
+- Latest codebase review: [`docs/CODEBASE_REVIEW.md`](docs/CODEBASE_REVIEW.md)
 - Vercel launch audit checklist: [`docs/VERCEL_PRODUCTION_AUDIT.md`](docs/VERCEL_PRODUCTION_AUDIT.md)
 - Backend-specific notes: [`backend/README.md`](backend/README.md)
 - Workspace design/coding guidance: [`guidelines/Guidelines.md`](guidelines/Guidelines.md)
@@ -123,6 +143,16 @@ Frontend production builds succeed:
 
 - Legacy Vite: `pnpm build`
 - Next.js: `pnpm --dir frontend build`
+
+Combined full-stack check:
+
+- `pnpm build:all` (runs frontend build + backend verification; if backend deps are missing, run `pnpm backend:install`)
+
+CI:
+
+- GitHub Actions workflow at `.github/workflows/ci.yml` runs:
+  - Frontend production build
+  - Backend smoke checks (imports + syntax compile)
 
 ## Deploying Next.js frontend to Vercel
 

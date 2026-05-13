@@ -11,6 +11,7 @@ import {
   Lightbulb,
   RefreshCw,
   Loader2,
+  Cpu,
 } from "lucide-react";
 import type { Song } from "./SongCard";
 import { getAIAnalysis } from "../utils/api";
@@ -20,11 +21,38 @@ interface AIInsightsProps {
   song: Song;
 }
 
+const LOCAL_AGENT_URL: string = (() => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const env = (import.meta as any).env as Record<string, string> | undefined;
+    return env?.["VITE_LOCAL_AGENT_URL"] || "http://localhost:8000";
+  } catch {
+    return "http://localhost:8000";
+  }
+})();
+
+async function isLocalAgentAvailable(): Promise<boolean> {
+  try {
+    const r = await fetch(`${LOCAL_AGENT_URL}/api/agent/health`, { signal: AbortSignal.timeout(2000) });
+    if (!r.ok) return false;
+    const data = await r.json();
+    return data.status === "ok";
+  } catch {
+    return false;
+  }
+}
+
 export function AIInsights({ song }: AIInsightsProps) {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSongId, setLastSongId] = useState<string | null>(null);
+  const [usingLocal, setUsingLocal] = useState(false);
+  const [localAvailable, setLocalAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    isLocalAgentAvailable().then(setLocalAvailable);
+  }, []);
 
   // Auto-fetch when song changes
   useEffect(() => {
@@ -37,7 +65,11 @@ export function AIInsights({ song }: AIInsightsProps) {
   const handleAnalyze = async () => {
     setIsLoading(true);
     setError(null);
+    setUsingLocal(false);
     try {
+      // Check local first so we can set the badge
+      const local = await isLocalAgentAvailable();
+      setUsingLocal(local);
       const result = await getAIAnalysis(song);
       setAnalysis(result);
       setLastSongId(song.id);
@@ -59,10 +91,18 @@ export function AIInsights({ song }: AIInsightsProps) {
             <Brain className="size-8 text-primary" />
           </div>
           <h3 className="text-lg font-semibold mb-2">AI-Powered Insights</h3>
-          <p className="text-sm text-muted-foreground text-center max-w-md mb-6">
-            Get deep analysis of "{song.title}" powered by Grok AI. Discover
-            mood, genre hints, production notes, DJ tips, and more.
+          <p className="text-sm text-muted-foreground text-center max-w-md mb-3">
+            Get deep analysis of "{song.title}". Discover mood, genre hints,
+            production notes, DJ tips, and more.
           </p>
+          {localAvailable !== null && (
+            <div className="flex items-center gap-1.5 mb-4 text-xs">
+              <Cpu className={`size-3.5 ${localAvailable ? "text-green-500" : "text-muted-foreground"}`} />
+              <span className={localAvailable ? "text-green-500" : "text-muted-foreground"}>
+                {localAvailable ? "Hermes3 (local)" : "Cloud AI"}
+              </span>
+            </div>
+          )}
           <Button
             onClick={handleAnalyze}
             className="bg-gradient-to-r from-primary to-pink-500 hover:from-primary/90 hover:to-pink-500/90 shadow-lg shadow-primary/20"
@@ -81,7 +121,7 @@ export function AIInsights({ song }: AIInsightsProps) {
         <CardContent className="flex flex-col items-center justify-center py-12">
           <Loader2 className="size-10 text-primary animate-spin mb-4" />
           <p className="text-muted-foreground">
-            Grok is analyzing "{song.title}"...
+            {usingLocal ? "Hermes3" : "AI"} is analyzing "{song.title}"...
           </p>
           <p className="text-xs text-muted-foreground/60 mt-1">
             This may take a few seconds
@@ -128,6 +168,11 @@ export function AIInsights({ song }: AIInsightsProps) {
               >
                 {analysis.mood}
               </Badge>
+              {usingLocal && (
+                <Badge variant="outline" className="border-green-500/30 text-green-500 text-xs gap-1">
+                  <Cpu className="size-3" /> Hermes3
+                </Badge>
+              )}
               <Button
                 variant="ghost"
                 size="sm"

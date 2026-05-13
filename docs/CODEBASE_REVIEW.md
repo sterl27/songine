@@ -1,145 +1,121 @@
 # Codebase Review
 
-_Date: 2026-04-21_
+_Date: 2026-05-13_
 
 ## Summary
 
-Reviewed architecture, key entrypoints, env/config, auth/session paths, deployment files, and runtime diagnostics. No compile/language-service errors detected. Core startup paths are healthy.
+Reviewed runtime scripts, dependency manifests, current docs, and production build paths. Implemented the first three remediation actions from the prior review.
+
+Validated commands:
+
+- `pnpm --dir frontend build` ✅ passes
+- `pnpm build:all` ⚠️ fails when backend deps are missing, but now reports actionable guidance:
+	- `Backend verification failed: missing Python packages: fastapi, uvicorn`
+	- `Run: pnpm backend:install`
 
 ---
 
 ## Strengths
 
-- Sensible Next.js proxy routes for backend isolation (`frontend/app/api/local-pipeline/*`).
-- Defensive env handling in middleware — prevents startup crashes when Supabase keys are absent (`frontend/lib/supabase/middleware.ts`).
-- Good documentation structure: `README.md`, `docs/INDEX.md`, `docs/DEVELOPER_GUIDE.md`.
-- Backend health endpoint and optional integrations (Supabase upload) designed as non-blocking.
-- Security headers, CSP, and no-store cache controls implemented thoughtfully in `frontend/next.config.ts`.
-- Rate limiting present on expensive proxy endpoints (`frontend/lib/server/rate-limit.ts`).
+- Next.js build pipeline is stable and type/lint checks pass during build.
+- Proxy routing strategy under `frontend/app/api/local-pipeline/*` keeps browser/backend coupling controlled.
+- Project now has a dedicated workflow guide and quickstart for local operation.
+- Build and dev scripts are centralized under root `package.json`.
 
 ---
 
-## Findings (prioritized)
+## Findings (Current)
 
-### 1. Dual-frontend architecture — High
+### 1. Backend verification is now explicit and actionable — Resolved
 
-**Problem**
-Two separate frontend runtimes co-exist:
-- Legacy Vite app (`src/`, root `package.json`, port 5173)
-- Next.js app (`frontend/`, `frontend/package.json`, port 3000)
+**Where**
 
-The Next.js entrypoint imports the legacy app directly via `../../src/app/App`, creating cross-boundary coupling.
+- `package.json` scripts: `build:all` and `backend:verify` in [package.json](../package.json#L11) and [package.json](../package.json#L17)
 
-**Risk**
-Dependency/config drift over time. Two sets of tooling, two `pnpm-lock.yaml` files, two sets of Tailwind/Radix versions that can diverge independently.
+**Issue**
+
+`backend:verify` is now handled by `scripts/backend-verify.sh`, which checks for `backend/venv` and required Python modules before reporting status.
+
+**Observed behavior**
+
+Friendly failure guidance is shown with the exact remediation command.
 
 **Recommendation**
-Decide on one canonical frontend. The recommended path is to fully move `src/app` components under `frontend/src` and delete the root Vite setup, or formalize `src/` as a proper workspace package consumed by `frontend/`.
+
+Keep current strict behavior for CI/local correctness; it now fails fast with clear instructions.
 
 ---
 
-### 2. In-memory rate limiter — Medium-High
+### 2. Frontend dependency hygiene cleanup — Resolved
 
-**File:** `frontend/lib/server/rate-limit.ts`
+**Where**
 
-**Problem**
-Rate state is stored in a process-local `Map`. On serverless deployments (Vercel), each function instance has its own in-memory state; limits reset on cold starts and are not shared across instances.
+- [frontend/package.json](../frontend/package.json#L47)
+
+**Issue**
+
+Removed unreferenced tooling-style packages from `frontend/package.json` (`ai`, `cli`, `gateway`, `gh`, `shadcn`, `vercel`) and regenerated lockfile.
 
 **Recommendation**
-Replace with a shared atomic backend:
-- [Upstash Redis](https://upstash.com/) (serverless-friendly, pay-per-request)
-- Vercel KV (same interface)
 
-Keep the same `enforceRateLimit` function signature; swap the store underneath.
+Add periodic dependency hygiene checks to prevent recurrence.
 
 ---
 
-### 3. Mixed Supabase credential strategy — Medium
+### 3. Root questionable dependency cleanup — Resolved
 
-**Files:** `src/app/utils/supabaseAuth.ts`, `src/app/utils/api.ts`
+**Where**
 
-**Problem**
-Both files fall back to hardcoded constants from `utils/supabase/info` when env vars are absent. The Next.js middleware and server client (`frontend/lib/supabase/`) correctly use env vars only. These two paths may silently use different projects or keys depending on build environment.
+- `workflow` dependency in [package.json](../package.json#L79)
+
+**Issue**
+
+Removed `workflow` from root dependencies and regenerated `pnpm-lock.yaml`.
 
 **Recommendation**
-Standardize on env-first everywhere. Remove or gate hardcoded fallbacks behind an explicit `DEMO_MODE` flag so runtime behavior is unambiguous.
+
+Continue to review unexpected manifest diffs before committing lockfile updates.
 
 ---
 
-### 4. Backend is a monolith — Medium
+### 4. Dual-frontend architecture remains a medium-term maintenance risk — Medium
 
-**File:** `backend/app.py` (~220+ lines in one file)
+**Where**
 
-**Problem**
-Model lifecycle (MusicGen, Demucs), MIR analysis, SSE streaming, file serving, and Supabase upload are all co-located. This hurts testability and makes incremental changes higher-risk.
+- Root Vite app + Next.js app in `frontend/`
+- Cross-boundary import from Next.js entrypoint into legacy app
+
+**Issue**
+
+Two active frontend dependency stacks and lockfiles increase drift risk over time.
 
 **Recommendation**
-Split into focused modules:
 
-```
-backend/
-  services/
-    musicgen.py    # model lifecycle + generation
-    mir.py         # chroma, key, tempo, melody
-    storage.py     # Supabase upload
-  routers/
-    generate.py    # POST /generate, POST /generate/stream
-    files.py       # GET /file/{filename}
-```
-
-This can be done incrementally — move one service at a time without changing the API contract.
+- Either complete migration to Next.js-owned source tree or formalize shared UI code as a workspace package.
 
 ---
 
-### 5. No automated tests or CI — Medium
+## Open Questions
 
-**Problem**
-The developer guide documents only manual smoke checks and `pnpm build`. No `pytest`, `vitest`/`jest`, or GitHub Actions workflow exists.
-
-**Recommendation**
-Start small to get CI coverage:
-
-**Backend** (pytest)
-- `/health` returns `{"status": "ok"}`
-- `get_current_user` raises 401 with missing/bad token
-- Pure utility functions: `detect_key_with_templates`, `estimate_chords`, `_normalize_chroma`
-
-**Frontend** (Vitest or Jest + Testing Library)
-- `enforceRateLimit` unit test
-- `getBackendApiBaseUrl` fallback logic
-- API proxy smoke test (mock fetch)
-
-**CI** (GitHub Actions)
-```yaml
-on: [push, pull_request]
-jobs:
-  frontend:
-    run: pnpm --dir frontend build && pnpm --dir frontend typecheck
-  backend:
-    run: pytest backend/
-```
+1. Is root Vite still a supported runtime, or should it be marked deprecated in docs?
+2. Should shared UI code be extracted into a proper workspace package to reduce Next/Vite coupling?
 
 ---
 
-### 6. Production controls pending — Medium (pre-launch)
+## Newly Implemented
 
-`docs/VERCEL_PRODUCTION_AUDIT.md` lists outstanding items that are launch blockers:
-
-1. **Backend not deployed** — `BACKEND_API_URL` is unset in production; all `/api/local-pipeline/*` calls will fail.
-2. **Deployment Protection + WAF** not configured in Vercel dashboard.
-3. **No incident response runbook**.
-
-See the audit doc for the full recommended 48-hour launch plan.
+1. Hardened backend verification script and wired it into `pnpm backend:verify`.
+2. Pruned accidental dependencies from root and frontend manifests.
+3. Added CI workflow at `.github/workflows/ci.yml`:
+	- Frontend production build job.
+	- Backend smoke job (Python import + syntax compile checks).
 
 ---
 
-## Quick-win next steps
+## Next steps
 
 | Priority | Action | Effort |
 |---|---|---|
-| 1 | Pick canonical frontend, remove Vite/Next duplication | Medium |
-| 2 | Swap in-memory limiter for Upstash/Vercel KV | Small |
-| 3 | Add 3 pytest tests + GitHub Actions CI | Small |
-| 4 | Standardize Supabase credential path (`env`-only) | Small |
-| 5 | Split `backend/app.py` into service modules | Medium |
-| 6 | Deploy backend + set `BACKEND_API_URL` for Vercel | Depends on infra |
+| 1 | Decide canonical frontend architecture and document deprecation plan | Medium |
+| 2 | Add lightweight backend API test (e.g., `/health`) to CI | Small |
+| 3 | Replace process-local rate limiter store with shared backend (Redis/KV) | Small |

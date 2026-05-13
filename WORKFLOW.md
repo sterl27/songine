@@ -155,4 +155,4 @@ SUPABASE_KEY=<your_key>
 **FastAPI Backend:**
 Deploy to your hosting (Railway, Fly.io, AWS EC2, etc.)
 
-See [README.md](../README.md) and [docs/VERCEL_PRODUCTION_AUDIT.md](../docs/VERCEL_PRODUCTION_AUDIT.md) for deployment details.
+See [README.md](README.md) and [docs/VERCEL_PRODUCTION_AUDIT.md](docs/VERCEL_PRODUCTION_AUDIT.md) for deployment details.

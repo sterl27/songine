@@ -10,6 +10,7 @@ frontend/.env.local
 # Python
 __pycache__/
 *.py[cod]
+backend/venv/
 backend/outputs/
 
 # Editor settings

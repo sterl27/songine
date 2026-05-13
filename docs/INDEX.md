@@ -5,8 +5,11 @@ Use this page as the canonical entry point for project documentation.
 ## Start here
 
 - **Public quickstart**: [`../README.md`](../README.md)
+- **Command quick reference**: [`../QUICKSTART.md`](../QUICKSTART.md)
+- **Local workflow guide**: [`../WORKFLOW.md`](../WORKFLOW.md)
 - **Developer deep dive**: [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md)
 - **Backend runtime/API guide**: [`../backend/README.md`](../backend/README.md)
+- **Latest codebase assessment**: [`CODEBASE_REVIEW.md`](CODEBASE_REVIEW.md)
 - **Project coding/design guidelines**: [`../guidelines/Guidelines.md`](../guidelines/Guidelines.md)
 - **Attributions and licenses**: [`../ATTRIBUTIONS.md`](../ATTRIBUTIONS.md)
 

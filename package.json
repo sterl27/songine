@@ -9,12 +9,13 @@
     "build": "vite build",
     "dev": "vite",
     "build:all": "pnpm --dir frontend build && pnpm backend:verify",
+    "start:all": "pnpm backend:dev & pnpm dev:frontend",
     "build:frontend": "pnpm --dir frontend build",
     "build:vite": "vite build",
     "dev:frontend": "pnpm --dir frontend dev",
     "dev:vite": "vite",
     "backend:install": "cd backend && python3 -m venv venv 2>/dev/null || true && . venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt",
-    "backend:verify": "cd backend && . venv/bin/activate && python3 -c \"import fastapi; print('Backend OK')\"",
+    "backend:verify": "bash scripts/backend-verify.sh",
     "backend:dev": "cd backend && . venv/bin/activate && python3 -m uvicorn main:app --reload --port 8000",
     "backend:start": "cd backend && . venv/bin/activate && python3 -m uvicorn main:app --port 8000"
   },
@@ -75,8 +76,7 @@
     "sonner": "2.0.3",
     "tailwind-merge": "3.2.0",
     "tw-animate-css": "1.3.8",
-    "vaul": "1.1.2",
-    "workflow": "^4.2.4"
+    "vaul": "1.1.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
