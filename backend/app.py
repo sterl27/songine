@@ -21,7 +21,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from audiocraft.models import MusicGen
+try:
+    from audiocraft.models import MusicGen
+except Exception:  # pragma: no cover
+    MusicGen = None  # type: ignore
 
 try:
     import essentia.standard as es  # type: ignore
@@ -80,6 +83,12 @@ MINOR_TEMPLATE = np.array([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0], dtype=np.float32
 
 
 def get_musicgen() -> MusicGen:
+    if MusicGen is None:
+        raise RuntimeError(
+            "Music generation is unavailable because 'audiocraft' is not installed. "
+            "Remove generation calls or install audiocraft to enable this endpoint."
+        )
+
     global _MUSICGEN
     if _MUSICGEN is None:
         print("Loading MusicGen model...")

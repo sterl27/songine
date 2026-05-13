@@ -7,7 +7,6 @@ httpx
 torch
 torchaudio
 torchvision
-audiocraft
 demucs
 librosa
 numpy<2

@@ -139,7 +139,7 @@ async def analyze_song(req: AnalyzeRequest) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=f"Ollama error: {exc}") from exc
 
 
-@router.post("/chat")
+@router.post("/chat", response_model=None)
 async def agent_chat(req: AgentChatRequest) -> dict[str, Any] | StreamingResponse:
     """Open-ended chat with the Hermes agent."""
     client = _get_client()
