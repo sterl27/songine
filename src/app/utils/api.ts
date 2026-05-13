@@ -160,16 +160,25 @@ export interface AIAnalysis {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const LOCAL_AGENT_URL: string = (() => {
+const _viteEnv = (() => {
   try {
-    // Vite-only: import.meta.env is available at runtime in the browser bundle
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const env = (import.meta as any).env as Record<string, string> | undefined;
-    return env?.["VITE_LOCAL_AGENT_URL"] || "http://localhost:8000";
+    return (import.meta as any).env as Record<string, string> | undefined;
   } catch {
-    return "http://localhost:8000";
+    return undefined;
   }
 })();
+
+const LOCAL_AGENT_URL: string = _viteEnv?.["VITE_LOCAL_AGENT_URL"] || "http://localhost:8000";
+const OPENROUTER_API_KEY: string = _viteEnv?.["VITE_OPENROUTER_API_KEY"] ?? "";
+const OPENROUTER_MODEL: string =
+  _viteEnv?.["VITE_OPENROUTER_MODEL"] ?? "nousresearch/hermes-3-llama-3.1-405b:free";
+
+export type AISource = "local" | "openrouter" | "cloud";
+export interface AIAnalysisResult {
+  analysis: AIAnalysis;
+  source: AISource;
+}
 
 async function getLocalAIAnalysis(song: Song): Promise<AIAnalysis> {
   const response = await fetchWithTimeout(
@@ -185,36 +194,90 @@ async function getLocalAIAnalysis(song: Song): Promise<AIAnalysis> {
   return response.json();
 }
 
-export async function getAIAnalysis(song: Song): Promise<AIAnalysis> {
-  // Prefer local Hermes agent when available
+async function getOpenRouterAIAnalysis(song: Song): Promise<AIAnalysis> {
+  if (!OPENROUTER_API_KEY) throw new Error("No OpenRouter API key configured");
+
+  const prompt = [
+    `Song: "${song.title}" by ${song.artist ?? "Unknown"}`,
+    song.album ? `Album: ${song.album}` : "",
+    song.analysis?.tempo ? `BPM: ${Math.round(song.analysis.tempo)}` : "",
+    song.analysis?.key ? `Key: ${song.analysis.key} ${song.analysis.mode ?? ""}`.trim() : "",
+    song.releaseYear ? `Year: ${song.releaseYear}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const response = await fetchWithTimeout(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "HTTP-Referer": "https://songine.app",
+        "X-Title": "Songine",
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a music analyst. Return ONLY a valid JSON object (no markdown) with keys: " +
+              "summary, mood, genre_hints (array), production_notes, dj_tips, similar_artists (array), fun_fact.",
+          },
+          { role: "user", content: `Analyze this track:\n${prompt}` },
+        ],
+        temperature: 0.7,
+      }),
+    },
+    15_000,
+  );
+
+  if (!response.ok) throw new Error(`OpenRouter: ${response.status}`);
+  const json = await response.json();
+  const content: string = json.choices?.[0]?.message?.content ?? "";
+  // Strip optional markdown fences
+  const cleaned = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  return JSON.parse(cleaned) as AIAnalysis;
+}
+
+export async function getAIAnalysis(song: Song): Promise<AIAnalysisResult> {
+  // 1. Prefer local Hermes agent
   try {
-    return await getLocalAIAnalysis(song);
+    const analysis = await getLocalAIAnalysis(song);
+    return { analysis, source: "local" };
   } catch {
-    // Fall through to cloud
+    // Fall through
   }
 
-  // Try cached cloud result first
+  // 2. Try cached Supabase result
   try {
     const cachedResponse = await fetchWithRetry(`${API_BASE_URL}/ai/analyze/${song.id}`, { headers }, 0);
     if (cachedResponse.ok) {
-      return cachedResponse.json();
+      return { analysis: await cachedResponse.json(), source: "cloud" };
     }
   } catch {
-    // No cache, proceed to generate
+    // No cache
   }
 
-  const response = await fetchWithRetry(`${API_BASE_URL}/ai/analyze`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ song }),
-  });
-
-  if (!response.ok) {
-    const errorMsg = await parseErrorResponse(response);
-    throw new Error(errorMsg);
+  // 3. Try generating via Supabase cloud AI
+  try {
+    const response = await fetchWithRetry(`${API_BASE_URL}/ai/analyze`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ song }),
+    });
+    if (response.ok) {
+      return { analysis: await response.json(), source: "cloud" };
+    }
+  } catch {
+    // Fall through to OpenRouter
   }
 
-  return response.json();
+  // 4. OpenRouter as 2nd fallback
+  const analysis = await getOpenRouterAIAnalysis(song);
+  return { analysis, source: "openrouter" };
 }
 
 // ─── MIR Search API ─────────────────────────────────────────────

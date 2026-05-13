@@ -14,7 +14,7 @@ import {
   Cpu,
 } from "lucide-react";
 import type { Song } from "./SongCard";
-import { getAIAnalysis } from "../utils/api";
+import { getAIAnalysis, type AISource } from "../utils/api";
 import type { AIAnalysis } from "../utils/api";
 
 interface AIInsightsProps {
@@ -47,7 +47,7 @@ export function AIInsights({ song }: AIInsightsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSongId, setLastSongId] = useState<string | null>(null);
-  const [usingLocal, setUsingLocal] = useState(false);
+  const [aiSource, setAiSource] = useState<AISource | null>(null);
   const [localAvailable, setLocalAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -65,12 +65,10 @@ export function AIInsights({ song }: AIInsightsProps) {
   const handleAnalyze = async () => {
     setIsLoading(true);
     setError(null);
-    setUsingLocal(false);
+    setAiSource(null);
     try {
-      // Check local first so we can set the badge
-      const local = await isLocalAgentAvailable();
-      setUsingLocal(local);
-      const result = await getAIAnalysis(song);
+      const { analysis: result, source } = await getAIAnalysis(song);
+      setAiSource(source);
       setAnalysis(result);
       setLastSongId(song.id);
     } catch (err) {
@@ -121,7 +119,7 @@ export function AIInsights({ song }: AIInsightsProps) {
         <CardContent className="flex flex-col items-center justify-center py-12">
           <Loader2 className="size-10 text-primary animate-spin mb-4" />
           <p className="text-muted-foreground">
-            {usingLocal ? "Hermes3" : "AI"} is analyzing "{song.title}"...
+            {localAvailable ? "Hermes3" : "AI"} is analyzing "{song.title}"...
           </p>
           <p className="text-xs text-muted-foreground/60 mt-1">
             This may take a few seconds
@@ -168,9 +166,14 @@ export function AIInsights({ song }: AIInsightsProps) {
               >
                 {analysis.mood}
               </Badge>
-              {usingLocal && (
+              {aiSource === "local" && (
                 <Badge variant="outline" className="border-green-500/30 text-green-500 text-xs gap-1">
                   <Cpu className="size-3" /> Hermes3
+                </Badge>
+              )}
+              {aiSource === "openrouter" && (
+                <Badge variant="outline" className="border-blue-500/30 text-blue-400 text-xs gap-1">
+                  <Cpu className="size-3" /> OpenRouter
                 </Badge>
               )}
               <Button
