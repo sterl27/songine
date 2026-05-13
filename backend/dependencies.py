@@ -17,6 +17,29 @@ def _get_jwt_secret() -> str:
     return secret
 
 
+def _get_jwt_decode_options() -> dict[str, Any]:
+    issuer = os.getenv("SUPABASE_JWT_ISSUER")
+    audience = os.getenv("SUPABASE_JWT_AUDIENCE")
+
+    options: dict[str, Any] = {
+        "verify_aud": bool(audience),
+        "require_exp": True,
+        "require_sub": True,
+    }
+
+    decode_options: dict[str, Any] = {
+        "algorithms": ["HS256"],
+        "options": options,
+    }
+
+    if issuer:
+        decode_options["issuer"] = issuer
+    if audience:
+        decode_options["audience"] = audience
+
+    return decode_options
+
+
 async def get_current_user(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
@@ -35,9 +58,12 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
         payload = jwt.decode(
             token,
             _get_jwt_secret(),
-            algorithms=["HS256"],
-            options={"verify_aud": False},
+            **_get_jwt_decode_options(),
         )
+
+        if not payload.get("sub"):
+            raise JWTError("Token missing subject claim")
+
         return payload
     except JWTError as exc:
         raise HTTPException(

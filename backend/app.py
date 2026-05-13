@@ -306,6 +306,17 @@ def run_pipeline(req: GenerateRequest) -> dict[str, Any]:
     }
 
 
+def ensure_generation_available() -> None:
+    if MusicGen is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Music generation is unavailable because 'audiocraft' is not installed. "
+                "Install audiocraft to enable /generate endpoints."
+            ),
+        )
+
+
 @app.get("/")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": APP_TITLE}
@@ -313,6 +324,7 @@ def health() -> dict[str, str]:
 
 @app.post("/generate")
 def generate(req: GenerateRequest):
+    ensure_generation_available()
     try:
         return run_pipeline(req)
     except Exception as exc:
@@ -321,6 +333,8 @@ def generate(req: GenerateRequest):
 
 @app.post("/generate/stream")
 async def generate_stream(req: GenerateRequest):
+    ensure_generation_available()
+
     async def event_stream():
         try:
             yield "data: Starting local pipeline\n\n"
