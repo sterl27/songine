@@ -138,7 +138,13 @@ NEXT_PUBLIC_LOCAL_PIPELINE_PROXY_PATH=/api/local-pipeline
 BACKEND_API_URL=http://localhost:8000
 NEXT_PUBLIC_SUPABASE_URL=<your_url>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<your_key>
+OPENROUTER_API_KEY=<your_openrouter_key>   # optional server-side fallback
+OPENROUTER_MODEL=nousresearch/hermes-3-llama-3.1-405b:free
+UPSTASH_REDIS_REST_URL=<your_upstash_url>   # optional shared rate limit
+UPSTASH_REDIS_REST_TOKEN=<your_upstash_token>
 ```
+
+Security note: keep secrets in `frontend/.env.local` (or deployment env settings) and avoid `frontend/app/env.local`.
 
 **Backend `.env`:**
 ```bash

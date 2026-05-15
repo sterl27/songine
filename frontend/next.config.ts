@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const isProduction = process.env.NODE_ENV === "production";
+const scriptSrcDirective = isProduction
+  ? "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com"
+  : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -9,7 +12,7 @@ const contentSecurityPolicy = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
+  scriptSrcDirective,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",

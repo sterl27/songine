@@ -159,21 +159,6 @@ export interface AIAnalysis {
   fun_fact: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _viteEnv = (() => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (import.meta as any).env as Record<string, string> | undefined;
-  } catch {
-    return undefined;
-  }
-})();
-
-const LOCAL_AGENT_URL: string = _viteEnv?.["VITE_LOCAL_AGENT_URL"] || "http://localhost:8000";
-const OPENROUTER_API_KEY: string = _viteEnv?.["VITE_OPENROUTER_API_KEY"] ?? "";
-const OPENROUTER_MODEL: string =
-  _viteEnv?.["VITE_OPENROUTER_MODEL"] ?? "nousresearch/hermes-3-llama-3.1-405b:free";
-
 export type AISource = "local" | "openrouter" | "cloud";
 export interface AIAnalysisResult {
   analysis: AIAnalysis;
@@ -182,7 +167,7 @@ export interface AIAnalysisResult {
 
 async function getLocalAIAnalysis(song: Song): Promise<AIAnalysis> {
   const response = await fetchWithTimeout(
-    `${LOCAL_AGENT_URL}/api/agent/analyze`,
+    "/api/agent/analyze",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -195,51 +180,20 @@ async function getLocalAIAnalysis(song: Song): Promise<AIAnalysis> {
 }
 
 async function getOpenRouterAIAnalysis(song: Song): Promise<AIAnalysis> {
-  if (!OPENROUTER_API_KEY) throw new Error("No OpenRouter API key configured");
-
-  const prompt = [
-    `Song: "${song.title}" by ${song.artist ?? "Unknown"}`,
-    song.album ? `Album: ${song.album}` : "",
-    song.analysis?.tempo ? `BPM: ${Math.round(song.analysis.tempo)}` : "",
-    song.analysis?.key ? `Key: ${song.analysis.key} ${song.analysis.mode ?? ""}`.trim() : "",
-    song.releaseYear ? `Year: ${song.releaseYear}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
   const response = await fetchWithTimeout(
-    "https://openrouter.ai/api/v1/chat/completions",
+    "/api/agent/openrouter-analyze",
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "HTTP-Referer": "https://songine.app",
-        "X-Title": "Songine",
       },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a music analyst. Return ONLY a valid JSON object (no markdown) with keys: " +
-              "summary, mood, genre_hints (array), production_notes, dj_tips, similar_artists (array), fun_fact.",
-          },
-          { role: "user", content: `Analyze this track:\n${prompt}` },
-        ],
-        temperature: 0.7,
-      }),
+      body: JSON.stringify({ song }),
     },
     15_000,
   );
 
   if (!response.ok) throw new Error(`OpenRouter: ${response.status}`);
-  const json = await response.json();
-  const content: string = json.choices?.[0]?.message?.content ?? "";
-  // Strip optional markdown fences
-  const cleaned = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  return JSON.parse(cleaned) as AIAnalysis;
+  return response.json();
 }
 
 export async function getAIAnalysis(song: Song): Promise<AIAnalysisResult> {

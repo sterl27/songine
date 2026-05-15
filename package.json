@@ -6,8 +6,8 @@
   "scripts": {
     "setup": "pnpm install:all && pnpm build:all",
     "install:all": "pnpm install && pnpm --dir frontend install && pnpm backend:install",
-    "build": "vite build",
-    "dev": "vite",
+    "build": "pnpm build:frontend",
+    "dev": "pnpm dev:frontend",
     "build:all": "pnpm --dir frontend build && pnpm backend:verify",
     "start:all": "pnpm backend:dev & pnpm dev:frontend",
     "build:frontend": "pnpm --dir frontend build",

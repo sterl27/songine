@@ -5,11 +5,28 @@ import {
 } from "@supabase/supabase-js";
 import { projectId, publicAnonKey } from "../../../utils/supabase/info";
 
-const runtimeEnv = typeof process !== "undefined" ? process.env : undefined;
+declare const process:
+  | {
+      env?: Record<string, string | undefined>;
+    }
+  | undefined;
 
+const runtimeEnv = typeof process !== "undefined" ? process?.env : undefined;
 const supabaseUrl =
-  runtimeEnv?.NEXT_PUBLIC_SUPABASE_URL ?? `https://${projectId}.supabase.co`;
-const supabaseAnonKey = runtimeEnv?.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? publicAnonKey;
+  runtimeEnv?.NEXT_PUBLIC_SUPABASE_URL ??
+  `https://${projectId}.supabase.co`;
+const supabaseAnonKey =
+  runtimeEnv?.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  publicAnonKey;
+
+if (
+  !runtimeEnv?.NEXT_PUBLIC_SUPABASE_URL &&
+  typeof window !== "undefined"
+) {
+  console.warn(
+    "[supabase] NEXT_PUBLIC_SUPABASE_URL is not set; using fallback project URL from utils/supabase/info."
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

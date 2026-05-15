@@ -21,19 +21,9 @@ interface AIInsightsProps {
   song: Song;
 }
 
-const LOCAL_AGENT_URL: string = (() => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const env = (import.meta as any).env as Record<string, string> | undefined;
-    return env?.["VITE_LOCAL_AGENT_URL"] || "http://localhost:8000";
-  } catch {
-    return "http://localhost:8000";
-  }
-})();
-
 async function isLocalAgentAvailable(): Promise<boolean> {
   try {
-    const r = await fetch(`${LOCAL_AGENT_URL}/api/agent/health`, { signal: AbortSignal.timeout(2000) });
+    const r = await fetch("/api/agent/health", { signal: AbortSignal.timeout(2000) });
     if (!r.ok) return false;
     const data = await r.json();
     return data.status === "ok";

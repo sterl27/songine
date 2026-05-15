@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(request: Request): Promise<Response> {
-  const limitResponse = enforceRateLimit(request, {
+  const limitResponse = await enforceRateLimit(request, {
     keyPrefix: "local-pipeline-stream",
     limit: 4,
     windowMs: 60_000,

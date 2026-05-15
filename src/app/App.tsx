@@ -45,6 +45,7 @@ import {
 } from "./utils/supabaseAuth";
 
 export default function App() {
+  const INIT_UI_FALLBACK_MS = 8000;
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [searchResults, setSearchResults] = useState<Song[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -71,6 +72,13 @@ export default function App() {
   // Initialize the database on first load
   useEffect(() => {
     let isMounted = true;
+    const fallbackTimer = window.setTimeout(() => {
+      if (!isMounted) return;
+      console.warn(
+        `Database initialization exceeded ${INIT_UI_FALLBACK_MS}ms. Continuing startup without blocking UI.`
+      );
+      setIsInitialized(true);
+    }, INIT_UI_FALLBACK_MS);
 
     const init = async () => {
       try {
@@ -89,6 +97,7 @@ export default function App() {
         }
       } finally {
         if (isMounted) {
+          window.clearTimeout(fallbackTimer);
           setIsInitialized(true);
         }
       }
@@ -98,8 +107,9 @@ export default function App() {
 
     return () => {
       isMounted = false;
+      window.clearTimeout(fallbackTimer);
     };
-  }, []);
+  }, [INIT_UI_FALLBACK_MS]);
 
   useEffect(() => {
     let isMounted = true;

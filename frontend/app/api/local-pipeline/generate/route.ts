@@ -4,7 +4,7 @@ import { enforceRateLimit } from "@/lib/server/rate-limit";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<Response> {
-  const limitResponse = enforceRateLimit(request, {
+  const limitResponse = await enforceRateLimit(request, {
     keyPrefix: "local-pipeline-generate",
     limit: 8,
     windowMs: 60_000,

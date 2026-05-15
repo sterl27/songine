@@ -38,15 +38,6 @@ pnpm --dir frontend dev
 
 Open: `http://localhost:3000`
 
-### Legacy Vite frontend
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Open: `http://localhost:5173`
-
 ### Local backend (for Studio tab)
 
 Install system prerequisites first (Debian/Ubuntu):
@@ -88,24 +79,32 @@ Then open the frontend URL printed by Next.js (`http://localhost:3000` by defaul
 Create `.env` (or copy from `.env.example`):
 
 ```env
-VITE_LOCAL_PIPELINE_URL=http://localhost:8000
-
 # Next.js frontend
 NEXT_PUBLIC_LOCAL_PIPELINE_PROXY_PATH=/api/local-pipeline
 NEXT_PUBLIC_API_URL=http://localhost:8000
 BACKEND_API_URL=http://localhost:8000
 
 # Frontend Supabase Auth (public anon credentials)
-VITE_SUPABASE_URL=your_supabase_url_here
-VITE_SUPABASE_ANON_KEY=your_public_anon_key_here
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_public_anon_key_here
+
+# Optional AI fallback config (server-side in frontend/app/api/agent/openrouter-analyze/route.ts)
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_MODEL=nousresearch/hermes-3-llama-3.1-405b:free
+NEXT_PUBLIC_SITE_URL=https://songine.vercel.app
+
+# Optional shared rate limiting (recommended in production)
+UPSTASH_REDIS_REST_URL=your_upstash_redis_rest_url
+UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_rest_token
 
 # Optional Supabase upload config for backend artifacts
 SUPABASE_URL=your_supabase_url_here
 SUPABASE_KEY=your_supabase_service_or_anon_key_here
 SUPABASE_STORAGE_BUCKET=beats
+SUPABASE_JWT_SECRET=your-jwt-secret
 ```
 
-`VITE_SUPABASE_ANON_KEY` is safe for browser usage. **Do not expose Supabase service-role keys in frontend code.**
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` is safe for browser usage. **Do not expose Supabase service-role keys in frontend code.**
 
 For the Next.js frontend, use `frontend/.env.local.example` as the template and set:
 
@@ -115,7 +114,34 @@ For the Next.js frontend, use `frontend/.env.local.example` as the template and 
 - `NEXT_PUBLIC_API_URL` (optional client-side API base)
 - `BACKEND_API_URL` (server-side, used by Next API proxy routes)
 
+Optional (for AI fallback behavior in `src/app/utils/api.ts`):
+
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_MODEL`
+- `NEXT_PUBLIC_SITE_URL` (optional; used as OpenRouter referer fallback)
+
+Optional (for multi-instance rate limiting in `frontend/lib/server/rate-limit.ts`):
+
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+
+Security note:
+
+- Keep secrets in `frontend/.env.local` (or platform env settings) only.
+- Do **not** store secrets in `frontend/app/env.local`.
+
 > Note: `BACKEND_API_URL` is server-only and should point to your FastAPI host (for local dev: `http://localhost:8000`).
+
+### Verify API keys quickly
+
+You can validate configured keys with provider model/settings endpoints:
+
+- Supabase Auth settings: `GET <NEXT_PUBLIC_SUPABASE_URL>/auth/v1/settings`
+- Supabase function health: `GET <NEXT_PUBLIC_SUPABASE_URL>/functions/v1/make-server-aa7dba7b/health`
+- OpenRouter models: `GET https://openrouter.ai/api/v1/models`
+- OpenAI models: `GET https://api.openai.com/v1/models`
+
+Expected success status: `200`.
 
 ## Project map
 
@@ -132,7 +158,7 @@ docs/      # Developer docs
 - Command quick reference: [`QUICKSTART.md`](QUICKSTART.md)
 - Workflow guide: [`WORKFLOW.md`](WORKFLOW.md)
 - Full implementation and contributor guide: [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md)
-- Latest codebase review: [`docs/CODEBASE_REVIEW.md`](docs/CODEBASE_REVIEW.md)
+- Latest codebase review: [`docs/CODEBASE_REVIEW_2026-05-14.md`](docs/CODEBASE_REVIEW_2026-05-14.md)
 - Vercel launch audit checklist: [`docs/VERCEL_PRODUCTION_AUDIT.md`](docs/VERCEL_PRODUCTION_AUDIT.md)
 - Backend-specific notes: [`backend/README.md`](backend/README.md)
 - Workspace design/coding guidance: [`guidelines/Guidelines.md`](guidelines/Guidelines.md)
@@ -141,7 +167,6 @@ docs/      # Developer docs
 
 Frontend production builds succeed:
 
-- Legacy Vite: `pnpm build`
 - Next.js: `pnpm --dir frontend build`
 
 Combined full-stack check:
@@ -155,6 +180,8 @@ CI:
   - Backend smoke checks (imports + syntax compile)
 
 ## Deploying Next.js frontend to Vercel
+
+Use `frontend/vercel.json` as the authoritative Vercel config for this project.
 
 1. Create/import the project in Vercel and set **Root Directory** to `frontend`.
 2. Keep framework preset as **Next.js**.
