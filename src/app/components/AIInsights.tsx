@@ -38,6 +38,7 @@ export function AIInsights({ song }: AIInsightsProps) {
   const [error, setError] = useState<string | null>(null);
   const [lastSongId, setLastSongId] = useState<string | null>(null);
   const [aiSource, setAiSource] = useState<AISource | null>(null);
+  const [aiModel, setAiModel] = useState<string | null>(null);
   const [localAvailable, setLocalAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -56,9 +57,11 @@ export function AIInsights({ song }: AIInsightsProps) {
     setIsLoading(true);
     setError(null);
     setAiSource(null);
+    setAiModel(null);
     try {
-      const { analysis: result, source } = await getAIAnalysis(song);
+      const { analysis: result, source, model } = await getAIAnalysis(song);
       setAiSource(source);
+      setAiModel(model ?? null);
       setAnalysis(result);
       setLastSongId(song.id);
     } catch (err) {
@@ -163,7 +166,7 @@ export function AIInsights({ song }: AIInsightsProps) {
               )}
               {aiSource === "openrouter" && (
                 <Badge variant="outline" className="border-blue-500/30 text-blue-400 text-xs gap-1">
-                  <Cpu className="size-3" /> OpenRouter
+                  <Cpu className="size-3" /> {aiModel ? `OpenRouter · ${aiModel}` : "OpenRouter"}
                 </Badge>
               )}
               <Button

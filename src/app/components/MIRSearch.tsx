@@ -190,6 +190,9 @@ export function MIRSearch({ onSelectSong }: MIRSearchProps) {
             <p className="text-sm text-muted-foreground">
               Grok is matching audio features to your description
             </p>
+            <p className="text-xs text-muted-foreground/80 mt-2">
+              This can take about 20–30 seconds on a cold start.
+            </p>
           </CardContent>
         </Card>
       )}

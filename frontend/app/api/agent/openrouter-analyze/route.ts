@@ -25,6 +25,16 @@ type AIAnalysis = {
   fun_fact: string;
 };
 
+type OpenRouterChoicePayload = {
+  choices?: Array<{ message?: { content?: string } }>;
+};
+
+const DEFAULT_NEMOTRON_MODELS = [
+  "nvidia/llama-3.1-nemotron-70b-instruct:free",
+  "nvidia/llama-3.1-nemotron-70b-instruct",
+  "nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
+];
+
 function normalizeJsonBlock(text: string): string {
   return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 }
@@ -51,10 +61,13 @@ export async function POST(request: Request): Promise<Response> {
 
   const openRouterKey =
     process.env.OPENROUTER_API_KEY ?? process.env.openrouter_api_key;
-  const openRouterModel =
-    process.env.OPENROUTER_MODEL ??
-    process.env.openrouter_model ??
-    "nousresearch/hermes-3-llama-3.1-405b:free";
+  const configuredModel = process.env.OPENROUTER_MODEL ?? process.env.openrouter_model;
+  const modelCandidates = configuredModel
+    ? configuredModel
+        .split(",")
+        .map((model) => model.trim())
+        .filter(Boolean)
+    : DEFAULT_NEMOTRON_MODELS;
 
   if (!openRouterKey) {
     return new Response(
@@ -85,63 +98,65 @@ export async function POST(request: Request): Promise<Response> {
 
   const prompt = buildPrompt(body.song);
 
-  const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${openRouterKey}`,
-      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://songine.vercel.app",
-      "X-Title": "Songine",
-    },
-    body: JSON.stringify({
-      model: openRouterModel,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a music analyst. Return ONLY a valid JSON object (no markdown) with keys: " +
-            "summary, mood, genre_hints (array), production_notes, dj_tips, similar_artists (array), fun_fact.",
-        },
-        { role: "user", content: `Analyze this track:\n${prompt}` },
-      ],
-      temperature: 0.7,
-    }),
-    cache: "no-store",
-  });
+  const failures: string[] = [];
 
-  if (!upstream.ok) {
-    const upstreamBody = await upstream.text();
-    return new Response(
-      JSON.stringify({
-        error: `OpenRouter request failed (${upstream.status})`,
-        detail: upstreamBody.slice(0, 500),
+  for (const model of modelCandidates) {
+    const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openRouterKey}`,
+        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://songine.vercel.app",
+        "X-Title": "Songine",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a music analyst. Return ONLY a valid JSON object (no markdown) with keys: " +
+              "summary, mood, genre_hints (array), production_notes, dj_tips, similar_artists (array), fun_fact.",
+          },
+          { role: "user", content: `Analyze this track:\n${prompt}` },
+        ],
+        temperature: 0.7,
       }),
-      {
-        status: upstream.status,
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-      }
-    );
-  }
-
-  const upstreamJson = (await upstream.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-
-  const content = upstreamJson.choices?.[0]?.message?.content ?? "";
-
-  try {
-    const analysis = JSON.parse(normalizeJsonBlock(content)) as AIAnalysis;
-    return new Response(JSON.stringify(analysis), {
-      status: 200,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      cache: "no-store",
     });
-  } catch {
-    return new Response(
-      JSON.stringify({ error: "OpenRouter response was not valid JSON", raw: content.slice(0, 500) }),
-      {
-        status: 502,
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-      }
-    );
+
+    if (!upstream.ok) {
+      const upstreamBody = await upstream.text();
+      failures.push(`${model}: ${upstream.status} ${upstreamBody.slice(0, 180)}`);
+      continue;
+    }
+
+    const upstreamJson = (await upstream.json()) as OpenRouterChoicePayload;
+    const content = upstreamJson.choices?.[0]?.message?.content ?? "";
+
+    try {
+      const analysis = JSON.parse(normalizeJsonBlock(content)) as AIAnalysis;
+      return new Response(JSON.stringify(analysis), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+          "X-OpenRouter-Model": model,
+        },
+      });
+    } catch {
+      failures.push(`${model}: response was not valid JSON (${content.slice(0, 180)})`);
+    }
   }
+
+  return new Response(
+    JSON.stringify({
+      error: "OpenRouter request failed for all configured models",
+      detail: failures.slice(0, 3),
+    }),
+    {
+      status: 502,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    }
+  );
 }

@@ -9,7 +9,7 @@
     "build": "pnpm build:frontend",
     "dev": "pnpm dev:frontend",
     "build:all": "pnpm --dir frontend build && pnpm backend:verify",
-    "start:all": "pnpm backend:dev & pnpm dev:frontend",
+    "start:all": "bash scripts/start-all.sh",
     "build:frontend": "pnpm --dir frontend build",
     "build:vite": "vite build",
     "dev:frontend": "pnpm --dir frontend dev",

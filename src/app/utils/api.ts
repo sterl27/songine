@@ -1,12 +1,32 @@
 import { projectId, publicAnonKey } from "../../../utils/supabase/info";
+import { supabase } from "./supabaseAuth";
 import type { Song } from "../components/SongCard";
 
 const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-aa7dba7b`;
 
-const headers = {
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${publicAnonKey}`,
-};
+async function getSupabaseHeaders(): Promise<Record<string, string>> {
+  const baseHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  try {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (accessToken) {
+      return {
+        ...baseHeaders,
+        Authorization: `Bearer ${accessToken}`,
+      };
+    }
+  } catch {
+    // Fallback to anonymous key header below
+  }
+
+  return {
+    ...baseHeaders,
+    Authorization: `Bearer ${publicAnonKey}`,
+  };
+}
 
 // ─── Error Helpers ──────────────────────────────────────────────
 
@@ -24,7 +44,8 @@ async function parseErrorResponse(response: Response): Promise<string> {
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 800;
-const REQUEST_TIMEOUT_MS = 12_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
+const MIR_SEARCH_TIMEOUT_MS = 35_000;
 
 function timeoutError(url: string, timeoutMs: number): Error {
   return new Error(`Request timed out after ${timeoutMs}ms: ${url}`);
@@ -51,11 +72,12 @@ async function fetchWithTimeout(
 async function fetchWithRetry(
   url: string,
   options: RequestInit = {},
-  retries = MAX_RETRIES
+  retries = MAX_RETRIES,
+  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS
 ): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetchWithTimeout(url, options, REQUEST_TIMEOUT_MS);
+      const response = await fetchWithTimeout(url, options, timeoutMs);
       // Don't retry client errors (4xx), only server errors (5xx) or network issues
       if (response.ok || (response.status >= 400 && response.status < 500)) {
         return response;
@@ -76,7 +98,7 @@ async function fetchWithRetry(
         continue;
       }
       if (isAbort) {
-        throw timeoutError(url, REQUEST_TIMEOUT_MS);
+        throw timeoutError(url, timeoutMs);
       }
       throw err;
     }
@@ -87,6 +109,7 @@ async function fetchWithRetry(
 // ─── Song API ───────────────────────────────────────────────────
 
 export async function initializeDatabase(): Promise<{ success: boolean; count: number }> {
+  const headers = await getSupabaseHeaders();
   const response = await fetchWithRetry(`${API_BASE_URL}/songs/init`, {
     method: "POST",
     headers,
@@ -101,6 +124,7 @@ export async function initializeDatabase(): Promise<{ success: boolean; count: n
 }
 
 export async function searchSongs(query: string): Promise<Song[]> {
+  const headers = await getSupabaseHeaders();
   const response = await fetchWithRetry(
     `${API_BASE_URL}/songs/search?q=${encodeURIComponent(query)}`,
     { headers }
@@ -115,6 +139,7 @@ export async function searchSongs(query: string): Promise<Song[]> {
 }
 
 export async function getRandomSong(): Promise<Song> {
+  const headers = await getSupabaseHeaders();
   const response = await fetchWithRetry(`${API_BASE_URL}/songs/random`, { headers });
 
   if (!response.ok) {
@@ -126,6 +151,7 @@ export async function getRandomSong(): Promise<Song> {
 }
 
 export async function getAllSongs(): Promise<Song[]> {
+  const headers = await getSupabaseHeaders();
   const response = await fetchWithRetry(`${API_BASE_URL}/songs`, { headers });
 
   if (!response.ok) {
@@ -137,6 +163,7 @@ export async function getAllSongs(): Promise<Song[]> {
 }
 
 export async function getSongById(id: string): Promise<Song> {
+  const headers = await getSupabaseHeaders();
   const response = await fetchWithRetry(`${API_BASE_URL}/songs/${id}`, { headers });
 
   if (!response.ok) {
@@ -163,6 +190,7 @@ export type AISource = "local" | "openrouter" | "cloud";
 export interface AIAnalysisResult {
   analysis: AIAnalysis;
   source: AISource;
+  model?: string;
 }
 
 async function getLocalAIAnalysis(song: Song): Promise<AIAnalysis> {
@@ -179,7 +207,7 @@ async function getLocalAIAnalysis(song: Song): Promise<AIAnalysis> {
   return response.json();
 }
 
-async function getOpenRouterAIAnalysis(song: Song): Promise<AIAnalysis> {
+async function getOpenRouterAIAnalysis(song: Song): Promise<{ analysis: AIAnalysis; model?: string }> {
   const response = await fetchWithTimeout(
     "/api/agent/openrouter-analyze",
     {
@@ -193,10 +221,15 @@ async function getOpenRouterAIAnalysis(song: Song): Promise<AIAnalysis> {
   );
 
   if (!response.ok) throw new Error(`OpenRouter: ${response.status}`);
-  return response.json();
+
+  const model = response.headers.get("x-openrouter-model") ?? undefined;
+  const analysis = (await response.json()) as AIAnalysis;
+  return { analysis, model };
 }
 
 export async function getAIAnalysis(song: Song): Promise<AIAnalysisResult> {
+  const headers = await getSupabaseHeaders();
+
   // 1. Prefer local Hermes agent
   try {
     const analysis = await getLocalAIAnalysis(song);
@@ -230,8 +263,8 @@ export async function getAIAnalysis(song: Song): Promise<AIAnalysisResult> {
   }
 
   // 4. OpenRouter as 2nd fallback
-  const analysis = await getOpenRouterAIAnalysis(song);
-  return { analysis, source: "openrouter" };
+  const { analysis, model } = await getOpenRouterAIAnalysis(song);
+  return { analysis, source: "openrouter", model };
 }
 
 // ─── MIR Search API ─────────────────────────────────────────────
@@ -250,11 +283,12 @@ export interface MIRSearchResponse {
 }
 
 export async function mirSearch(query: string): Promise<MIRSearchResponse> {
+  const headers = await getSupabaseHeaders();
   const response = await fetchWithRetry(`${API_BASE_URL}/ai/mir-search`, {
     method: "POST",
     headers,
     body: JSON.stringify({ query }),
-  });
+  }, MAX_RETRIES, MIR_SEARCH_TIMEOUT_MS);
 
   if (!response.ok) {
     const errorMsg = await parseErrorResponse(response);
